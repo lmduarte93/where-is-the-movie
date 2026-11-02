@@ -4,7 +4,8 @@ const ALLOWED = [
   /^\/search\/multi$/,
   /^\/movie\/\d+$/,
   /^\/collection\/\d+$/,
-  /^\/(movie|tv)\/\d+\/watch\/providers$/
+  /^\/(movie|tv)\/\d+\/watch\/providers$/,
+  /^\/person\/\d+\/combined_credits$/
 ];
 
 export default async function handler(req, res) {
