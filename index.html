@@ -24,6 +24,12 @@ header{padding-block:56px 32px;display:flex;flex-direction:column;gap:20px}
 .brand{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
 h1{margin:0;font-weight:900;font-size:clamp(40px,8vw,92px);line-height:.9;letter-spacing:-.04em;text-wrap:balance}
 h1 span{color:var(--muted)}
+.home{color:inherit;text-decoration:none;display:inline-block}
+.home:hover span{color:var(--fg)}
+.home:focus-visible{outline:2px solid var(--ink);outline-offset:6px}
+.person{display:flex;align-items:center;gap:14px}
+.person img,.person .ph{width:56px;height:56px;border-radius:50%;object-fit:cover;background:#1d1d1d;filter:grayscale(1);flex:none}
+.role{font-size:12px;color:var(--muted)}
 .tag{font:500 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 form.search{display:flex;gap:0;border:1px solid var(--line);background:var(--surface)}
 form.search input{flex:1;min-width:0;background:transparent;border:0;color:var(--ink);font:500 clamp(18px,2.6vw,24px) var(--display);padding:18px 20px;outline:none}
@@ -68,16 +74,16 @@ footer a{color:var(--fg)}
 <div class="wrap">
   <header>
     <div class="brand">
-      <h1>Where is<br><span>the movie</span></h1>
+      <a class="home" href="/" id="home" aria-label="Voltar para a busca"><h1>Where is<br><span>the movie</span></h1></a>
       <div class="tag">Catálogo Brasil · BR</div>
     </div>
 
     <form class="search" id="form">
-      <input id="q" type="search" placeholder="Digite um filme ou série…" autocomplete="off" aria-label="Nome do filme ou série">
+      <input id="q" type="search" placeholder="Filme, série, ator ou atriz…" autocomplete="off" aria-label="Filme, série, ator ou atriz">
       <button id="go" type="submit">Buscar</button>
     </form>
     <div class="hint">
-      <span>Ex.: <button type="button" data-q="Senhor dos Anéis">Senhor dos Anéis</button> · <button type="button" data-q="Duna">Duna</button> · <button type="button" data-q="Cidade de Deus">Cidade de Deus</button></span>
+      <span>Ex.: <button type="button" data-q="Senhor dos Anéis">Senhor dos Anéis</button> · <button type="button" data-q="Duna">Duna</button> · <button type="button" data-q="Cidade de Deus">Cidade de Deus</button> · <button type="button" data-q="Fernanda Torres">Fernanda Torres</button></span>
     </div>
   </header>
 
@@ -93,7 +99,7 @@ footer a{color:var(--fg)}
 const IMG = "https://image.tmdb.org/t/p/";
 const $ = s => document.querySelector(s);
 
-document.querySelectorAll("[data-q]").forEach(b => b.onclick = () => { $("#q").value = b.dataset.q; run(b.dataset.q); });
+document.querySelectorAll("[data-q]").forEach(b => b.onclick = () => go(b.dataset.q));
 
 function setStatus(t, err){ const s=$("#status"); s.textContent=t||""; s.className="status"+(err?" err":""); }
 
@@ -126,9 +132,27 @@ async function run(q){
   setStatus("Procurando “" + q + "” nos catálogos brasileiros…");
   try {
     const res = await tmdb("/search/multi", { query:q, include_adult:"false", region:"BR" });
-    let hits = (res.results||[]).filter(r => r.media_type==="movie" || r.media_type==="tv");
-    if (!hits.length){ setStatus("Nada encontrado para “" + q + "”. Tente o título original ou outro nome."); return; }
-    hits = hits.slice(0, 14);
+    const results = res.results||[];
+    let hits = results.filter(r => r.media_type==="movie" || r.media_type==="tv");
+    const seen = new Set(); const groups = [];
+
+    // ator/atriz: quando a pessoa é o resultado mais relevante da busca
+    const first = results[0];
+    if (first && first.media_type==="person"){
+      const cr = await tmdb("/person/" + first.id + "/combined_credits");
+      const TALK = [10767,10763,99];
+      const work = (cr.cast||[])
+        .filter(c => (c.media_type==="movie"||c.media_type==="tv") && !/^(self|himself|herself|ele mesmo|ela mesma)/i.test(c.character||"") && !(c.genre_ids||[]).some(g => TALK.includes(g)))
+        .filter(c => { const k = keyOf(c); if (seen.has(k)) return false; seen.add(k); return true; })
+        .sort((a,b) => (b.vote_count||0)-(a.vote_count||0))
+        .slice(0, 18)
+        .sort((a,b) => (year(b)||"0").localeCompare(year(a)||"0"));
+      if (work.length) groups.push({ title: first.name, label: work.length + " trabalhos mais conhecidos", items: work, person: first });
+      hits = hits.filter(h => !seen.has(keyOf(h))).slice(0, 6);
+    } else {
+      hits = hits.slice(0, 14);
+    }
+    if (!hits.length && !groups.length){ setStatus("Nada encontrado para “" + q + "”. Tente o título original ou outro nome."); return; }
 
     // descobre sagas (coleções) a partir dos filmes mais relevantes
     const topMovies = hits.filter(h => h.media_type==="movie").slice(0,4);
@@ -136,7 +160,6 @@ async function run(q){
     const collIds = [...new Set(details.filter(d => d && d.belongs_to_collection).map(d => d.belongs_to_collection.id))].slice(0,2);
     const colls = await pool(collIds, 2, id => tmdb("/collection/" + id));
 
-    const seen = new Set(); const groups = [];
     colls.filter(Boolean).forEach(c => {
       const parts = (c.parts||[]).map(p => ({...p, media_type:"movie"}))
         .sort((a,b) => (a.release_date||"9999").localeCompare(b.release_date||"9999"));
@@ -144,7 +167,7 @@ async function run(q){
       groups.push({ title: c.name, label: "Saga · " + parts.length + " filmes", items: parts });
     });
     const rest = hits.filter(h => !seen.has(keyOf(h)));
-    if (rest.length) groups.push({ title: groups.length ? "No mesmo universo e relacionados" : "Resultados", label: rest.length + " títulos", items: rest });
+    if (rest.length) groups.push({ title: groups.some(g=>g.person) ? "Títulos com esse nome" : groups.length ? "No mesmo universo e relacionados" : "Resultados", label: rest.length + " títulos", items: rest });
 
     const all = groups.flatMap(g => g.items);
     setStatus("Consultando onde passa cada um dos " + all.length + " títulos…");
@@ -182,6 +205,7 @@ function card(it){
   const info = el("div","info");
   info.append(el("h3",null,titleOf(it)));
   info.append(el("div","meta",[it.media_type==="tv"?"Série":"Filme", year(it)].filter(Boolean).join(" · ")));
+  if (it.character) info.append(el("div","role","como " + it.character));
   const br = it._br;
   const rows = br ? [
     chipRow("Assinatura", br.flatrate, br.link),
@@ -199,15 +223,33 @@ function render(groups){
   const out = $("#out"); out.innerHTML="";
   groups.forEach(g => {
     const s = el("section","group");
-    const h = el("h2",null,g.title); h.append(el("small",null,g.label)); s.append(h);
+    const h = el("h2",null,g.title); h.append(el("small",null,g.label));
+    if (g.person){
+      const wrap = el("div","person");
+      if (g.person.profile_path){ const im = new Image(); im.src = IMG + "w185" + g.person.profile_path; im.alt = g.person.name; wrap.append(im); }
+      else wrap.append(el("div","ph"));
+      wrap.append(h); s.append(wrap);
+    } else s.append(h);
     const grid = el("div","grid"); g.items.forEach(it => grid.append(card(it))); s.append(grid);
     out.append(s);
   });
 }
 
-$("#form").addEventListener("submit", e => { e.preventDefault(); run($("#q").value); });
+function go(q, push=true){
+  q = (q||"").trim(); if (!q) return;
+  $("#q").value = q;
+  if (push) history.pushState({q}, "", "/?q=" + encodeURIComponent(q));
+  run(q);
+}
+function reset(){
+  $("#q").value = ""; $("#out").innerHTML = ""; setStatus("");
+  $("#q").focus();
+}
+$("#form").addEventListener("submit", e => { e.preventDefault(); go($("#q").value); });
+$("#home").addEventListener("click", e => { e.preventDefault(); history.pushState({}, "", "/"); reset(); });
+window.addEventListener("popstate", () => { const q = new URLSearchParams(location.search).get("q"); q ? go(q,false) : reset(); });
 const initial = new URLSearchParams(location.search).get("q");
-if (initial){ $("#q").value = initial; run(initial); } else { $("#q").value = "Senhor dos Anéis"; run("Senhor dos Anéis"); }
+if (initial) go(initial, false);
 </script>
 </body>
 </html>
