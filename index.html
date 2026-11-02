@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Where is the movie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: coluna única centrada; busca como "letreiro" no topo, resultados em grade de cartazes */
+:root{
+  --bg:#0a0a0a; --surface:#141414; --line:#262626; --muted:#8a8a8a; --fg:#f2f2f2; --ink:#ffffff;
+  --display:"Archivo",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--display);-webkit-font-smoothing:antialiased;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 64px}
+.wrap{max-width:1120px;margin:0 auto}
+header{padding-block:56px 32px;display:flex;flex-direction:column;gap:20px}
+.brand{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{margin:0;font-weight:900;font-size:clamp(40px,8vw,92px);line-height:.9;letter-spacing:-.04em;text-wrap:balance}
+h1 span{color:var(--muted)}
+.tag{font:500 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+form.search{display:flex;gap:0;border:1px solid var(--line);background:var(--surface)}
+form.search input{flex:1;min-width:0;background:transparent;border:0;color:var(--ink);font:500 clamp(18px,2.6vw,24px) var(--display);padding:18px 20px;outline:none}
+form.search input::placeholder{color:#555}
+form.search button{background:var(--ink);color:#000;border:0;font:700 13px var(--mono);letter-spacing:.12em;text-transform:uppercase;padding:0 24px;cursor:pointer}
+form.search button:disabled{opacity:.4;cursor:wait}
+form.search:focus-within{border-color:var(--muted)}
+.hint{font:400 12px var(--mono);color:var(--muted);display:flex;gap:16px;flex-wrap:wrap}
+.hint button{background:none;border:0;color:var(--fg);font:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:0}
+.hint button:focus-visible,form.search button:focus-visible,.chip:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+
+.status{font:13px var(--mono);color:var(--muted);padding-block:12px}
+.status.err{color:var(--fg)}
+section.group{display:flex;flex-direction:column;gap:20px;padding-block:28px;border-top:1px solid var(--line)}
+section.group h2{margin:0;display:flex;align-items:baseline;gap:14px;font-weight:700;font-size:22px;letter-spacing:-.01em}
+section.group h2 small{font:500 11px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px}
+.card{display:grid;grid-template-columns:104px 1fr;gap:14px;background:var(--surface);border:1px solid var(--line);padding:12px;min-width:0}
+.poster{width:104px;aspect-ratio:2/3;background:#1d1d1d;object-fit:cover;display:block;filter:grayscale(.15)}
+.poster.none{display:flex;align-items:center;justify-content:center;font:10px var(--mono);color:#555;text-align:center;padding:8px}
+.info{min-width:0;display:flex;flex-direction:column;gap:8px}
+.info h3{margin:0;font-size:16px;line-height:1.2;font-weight:700;text-wrap:balance}
+.meta{font:11px var(--mono);color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.prov{display:flex;flex-direction:column;gap:6px}
+.prov .lbl{font:10px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);padding:3px 8px 3px 3px;font-size:12px;color:var(--fg);text-decoration:none;background:var(--bg)}
+.chip img{width:20px;height:20px;border-radius:4px;filter:grayscale(1)}
+.chip:hover img{filter:none}
+.chip:hover{border-color:var(--muted)}
+.empty{font-size:12px;color:var(--muted)}
+.jw{font:11px var(--mono);color:var(--muted);text-decoration:none;margin-top:auto}
+.jw:hover{color:var(--fg)}
+footer{border-top:1px solid var(--line);padding-top:20px;font:11px var(--mono);color:var(--muted);line-height:1.7}
+footer a{color:var(--fg)}
+@media (max-width:420px){.card{grid-template-columns:84px 1fr}.poster{width:84px}}
+@media (prefers-reduced-motion:no-preference){.card{animation:in .35s ease both}@keyframes in{from{transform:translateY(6px)}to{transform:none}}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>Where is<br><span>the movie</span></h1>
+      <div class="tag">Catálogo Brasil · BR</div>
+    </div>
+
+    <form class="search" id="form">
+      <input id="q" type="search" placeholder="Digite um filme ou série…" autocomplete="off" aria-label="Nome do filme ou série">
+      <button id="go" type="submit">Buscar</button>
+    </form>
+    <div class="hint">
+      <span>Ex.: <button type="button" data-q="Senhor dos Anéis">Senhor dos Anéis</button> · <button type="button" data-q="Duna">Duna</button> · <button type="button" data-q="Cidade de Deus">Cidade de Deus</button></span>
+    </div>
+  </header>
+
+  <div class="status" id="status"></div>
+  <main id="out"></main>
+
+  <footer>
+    Dados de disponibilidade: <a href="https://www.justwatch.com/br" target="_blank" rel="noopener">JustWatch</a>, via <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a>. Este produto usa a API do TMDB, mas não é endossado nem certificado pelo TMDB. Catálogos mudam com frequência; confirme no app do streaming.
+  </footer>
+</div>
+
+<script>
+const IMG = "https://image.tmdb.org/t/p/";
+const $ = s => document.querySelector(s);
+
+document.querySelectorAll("[data-q]").forEach(b => b.onclick = () => { $("#q").value = b.dataset.q; run(b.dataset.q); });
+
+function setStatus(t, err){ const s=$("#status"); s.textContent=t||""; s.className="status"+(err?" err":""); }
+
+async function tmdb(path, params={}){
+  const u = new URL("/api/tmdb", location.origin);
+  u.searchParams.set("path", path);
+  Object.entries(params).forEach(([k,v]) => u.searchParams.set(k,v));
+  const r = await fetch(u);
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+// limita requisições simultâneas
+async function pool(items, n, fn){
+  const out = new Array(items.length); let i = 0;
+  await Promise.all(Array.from({length:Math.min(n,items.length)}, async () => {
+    while (i < items.length){ const k = i++; try { out[k] = await fn(items[k]); } catch(e){ out[k] = null; } }
+  }));
+  return out;
+}
+
+const year = it => (it.release_date || it.first_air_date || "").slice(0,4);
+const titleOf = it => it.title || it.name || "Sem título";
+const keyOf = it => it.media_type + ":" + it.id;
+
+async function run(q){
+  q = (q||"").trim();
+  if (!q) return;
+  $("#go").disabled = true; $("#out").innerHTML = "";
+  setStatus("Procurando “" + q + "” nos catálogos brasileiros…");
+  try {
+    const res = await tmdb("/search/multi", { query:q, include_adult:"false", region:"BR" });
+    let hits = (res.results||[]).filter(r => r.media_type==="movie" || r.media_type==="tv");
+    if (!hits.length){ setStatus("Nada encontrado para “" + q + "”. Tente o título original ou outro nome."); return; }
+    hits = hits.slice(0, 14);
+
+    // descobre sagas (coleções) a partir dos filmes mais relevantes
+    const topMovies = hits.filter(h => h.media_type==="movie").slice(0,4);
+    const details = await pool(topMovies, 4, m => tmdb("/movie/" + m.id));
+    const collIds = [...new Set(details.filter(d => d && d.belongs_to_collection).map(d => d.belongs_to_collection.id))].slice(0,2);
+    const colls = await pool(collIds, 2, id => tmdb("/collection/" + id));
+
+    const seen = new Set(); const groups = [];
+    colls.filter(Boolean).forEach(c => {
+      const parts = (c.parts||[]).map(p => ({...p, media_type:"movie"}))
+        .sort((a,b) => (a.release_date||"9999").localeCompare(b.release_date||"9999"));
+      parts.forEach(p => seen.add(keyOf(p)));
+      groups.push({ title: c.name, label: "Saga · " + parts.length + " filmes", items: parts });
+    });
+    const rest = hits.filter(h => !seen.has(keyOf(h)));
+    if (rest.length) groups.push({ title: groups.length ? "No mesmo universo e relacionados" : "Resultados", label: rest.length + " títulos", items: rest });
+
+    const all = groups.flatMap(g => g.items);
+    setStatus("Consultando onde passa cada um dos " + all.length + " títulos…");
+    const provs = await pool(all, 6, it => tmdb("/" + it.media_type + "/" + it.id + "/watch/providers"));
+    all.forEach((it,i) => it._br = provs[i] && provs[i].results ? provs[i].results.BR : null);
+
+    render(groups);
+    const onStream = all.filter(it => it._br && (it._br.flatrate||it._br.free||it._br.ads)).length;
+    setStatus(onStream + " de " + all.length + " títulos estão em streaming (assinatura ou grátis) no Brasil hoje.");
+  } catch(e){
+    setStatus("Não deu pra consultar agora (" + e.message + "). Verifique a conexão e tente de novo.", true);
+  } finally { $("#go").disabled = false; }
+}
+
+function el(tag, cls, txt){ const e=document.createElement(tag); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; return e; }
+
+function chipRow(label, list, link){
+  if (!list || !list.length) return null;
+  const box = el("div","prov"); box.append(el("div","lbl",label));
+  const chips = el("div","chips");
+  const uniq = [...new Map(list.map(p => [p.provider_id,p])).values()];
+  uniq.sort((a,b)=>(a.display_priority||99)-(b.display_priority||99)).forEach(p => {
+    const a = el("a","chip"); a.href = link || "https://www.justwatch.com/br"; a.target="_blank"; a.rel="noopener";
+    if (p.logo_path){ const im = new Image(); im.src = IMG + "w92" + p.logo_path; im.alt=""; a.append(im); }
+    a.append(document.createTextNode(p.provider_name));
+    chips.append(a);
+  });
+  box.append(chips); return box;
+}
+
+function card(it){
+  const c = el("article","card");
+  if (it.poster_path){ const im = new Image(); im.className="poster"; im.loading="lazy"; im.alt="Capa de " + titleOf(it); im.src = IMG + "w342" + it.poster_path; c.append(im); }
+  else c.append(el("div","poster none","sem capa"));
+  const info = el("div","info");
+  info.append(el("h3",null,titleOf(it)));
+  info.append(el("div","meta",[it.media_type==="tv"?"Série":"Filme", year(it)].filter(Boolean).join(" · ")));
+  const br = it._br;
+  const rows = br ? [
+    chipRow("Assinatura", br.flatrate, br.link),
+    chipRow("Grátis", [...(br.free||[]), ...(br.ads||[])], br.link),
+    chipRow("Aluguel", br.rent, br.link),
+    chipRow("Compra", br.buy, br.link)
+  ].filter(Boolean) : [];
+  if (rows.length) rows.forEach(r => info.append(r));
+  else info.append(el("div","empty","Fora dos streamings brasileiros no momento."));
+  if (br && br.link){ const a = el("a","jw","Ver detalhes no JustWatch ↗"); a.href=br.link; a.target="_blank"; a.rel="noopener"; info.append(a); }
+  c.append(info); return c;
+}
+
+function render(groups){
+  const out = $("#out"); out.innerHTML="";
+  groups.forEach(g => {
+    const s = el("section","group");
+    const h = el("h2",null,g.title); h.append(el("small",null,g.label)); s.append(h);
+    const grid = el("div","grid"); g.items.forEach(it => grid.append(card(it))); s.append(grid);
+    out.append(s);
+  });
+}
+
+$("#form").addEventListener("submit", e => { e.preventDefault(); run($("#q").value); });
+const initial = new URLSearchParams(location.search).get("q");
+if (initial){ $("#q").value = initial; run(initial); } else { $("#q").value = "Senhor dos Anéis"; run("Senhor dos Anéis"); }
+</script>
+</body>
+</html>
